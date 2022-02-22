@@ -1,7 +1,7 @@
 # ML2022_spring
 Machine Learning @ NTU GCIE , prof. Hung-Yi, Lee
 
-## hw1
+## Hw1-Regression
 * Regression on covid-19 prediction using DNN.
 * Change some places to pass boss_baseline:
   * feat_idx(depends on the output of feat_select.py) 
