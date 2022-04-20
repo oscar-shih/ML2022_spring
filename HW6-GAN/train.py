@@ -1,9 +1,11 @@
 import os
 from datetime import datetime
+import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.autograd as autograd
 import torchvision
 
 from torch import optim
@@ -24,7 +26,7 @@ class TrainerGAN():
         
         self.G = Generator(100)
         self.D = Discriminator(3)
-        
+        self.clip_value = self.config["clip_value"]
         self.loss = nn.BCELoss()
 
         """
@@ -72,18 +74,36 @@ class TrainerGAN():
         self.D = self.D.cuda()
         self.G.train()
         self.D.train()
-    def gp(self):
+    def gp(self, r_imgs, f_imgs):
         """
         Implement gradient penalty function
         """
-        pass
+        alpha = torch.cuda.FloatTensor(np.random.random((r_imgs.size(0), 1, 1, 1)))
+        # Get random interpolation between real and fake samples
+        interpolates = (alpha * r_imgs + ((1 - alpha) * f_imgs)).requires_grad_(True)
+        d_interpolates = self.D(interpolates)
+        fake = Variable(torch.cuda.FloatTensor(r_imgs.shape[0], 1).fill_(1.0), requires_grad=False).squeeze(-1)
+        # Get gradient w.r.t. interpolates
+        gradients = autograd.grad(
+            outputs=d_interpolates,
+            inputs=interpolates,
+            grad_outputs=fake,
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
+        gradients = gradients.view(gradients.size(0), -1)
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+        return gradient_penalty
+
         
     def train(self):
         """
         Use this function to train generator and discriminator
         """
         self.prepare_environment()
-        
+        arr = np.zeros(5)
+        # print(arr)
         for e, epoch in enumerate(range(self.config["n_epoch"])):
             progress_bar = tqdm(self.dataloader)
             progress_bar.set_description(f"Epoch {e+1}")
@@ -120,13 +140,20 @@ class TrainerGAN():
                 # r_loss = self.loss(r_logit, r_label)
                 # f_loss = self.loss(f_logit, f_label)
                 # loss_D = (r_loss + f_loss) / 2
-                loss_D = -torch.mean(r_logit) + torch.mean(f_logit)
+
+                # Weight Clipping
+                # loss_D = -torch.mean(r_logit) + torch.mean(f_logit) 
+
+                # Gradient Penalty
+                gradient_penalty = self.gp(r_imgs, f_imgs)
+                loss_D = -torch.mean(r_logit) + torch.mean(f_logit) + gradient_penalty
 
                 # Discriminator backwarding
                 self.D.zero_grad()
                 loss_D.backward()
                 self.opt_D.step()
-
+                
+                
                 """
                 NOTE FOR SETTING WEIGHT CLIP:
                 
@@ -134,7 +161,15 @@ class TrainerGAN():
                 """
                 for p in self.D.parameters():
                     p.data.clamp_(-self.config["clip_value"], self.config["clip_value"])
-                    
+                arr[0] += nn.utils.clip_grad_norm_(self.D.l1[0].parameters(), self.clip_value).item()
+                arr[1] += nn.utils.clip_grad_norm_(self.D.l1[2][0].parameters(), self.clip_value).item()
+                arr[2] += nn.utils.clip_grad_norm_(self.D.l1[3][0].parameters(), self.clip_value).item()
+                arr[3] += nn.utils.clip_grad_norm_(self.D.l1[4][0].parameters(), self.clip_value).item()
+                arr[4] += nn.utils.clip_grad_norm_(self.D.l1[5].parameters(), self.clip_value).item()
+
+                '''WGAN-GP: Gradient Norm'''
+                
+
 
 
                 # *********************
@@ -175,10 +210,10 @@ class TrainerGAN():
             logging.info(f'Save some samples to {filename}.')
 
             # Show some images during training.
-            grid_img = torchvision.utils.make_grid(f_imgs_sample.cpu(), nrow=10)
-            plt.figure(figsize=(10,10))
-            plt.imshow(grid_img.permute(1, 2, 0))
-            plt.show()
+            # grid_img = torchvision.utils.make_grid(f_imgs_sample.cpu(), nrow=10)
+            # plt.figure(figsize=(10,10))
+            # plt.imshow(grid_img.permute(1, 2, 0))
+            # plt.show()
 
             self.G.train()
 
@@ -186,7 +221,15 @@ class TrainerGAN():
                 # Save the checkpoints.
                 torch.save(self.G.state_dict(), os.path.join(self.ckpt_dir, f'G_{e}.pth'))
                 torch.save(self.D.state_dict(), os.path.join(self.ckpt_dir, f'D_{e}.pth'))
-
+        
+        for i in range(len(arr)):
+            arr[i] = math.log(arr[i])
+        print(arr)
+        with open("./WGAN-GP.txt", 'w') as out:
+            for i in range(len(arr)):
+                out.write(str(arr[i]))
+                out.write("\n")
+        
         logging.info('Finish training')
 
     def inference(self, G_path, n_generate=1000, n_output=30, show=False):

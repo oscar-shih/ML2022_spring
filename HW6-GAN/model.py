@@ -75,8 +75,8 @@ class Discriminator(nn.Module):
 
         return nn.Sequential(
             nn.Conv2d(in_dim, out_dim, 4, 2, 1),
-            # nn.InstanceNorm2d(out_dim),
-            nn.BatchNorm2d(out_dim),
+            nn.InstanceNorm2d(out_dim),
+            # nn.BatchNorm2d(out_dim),
             nn.LeakyReLU(0.2),
         )
     def forward(self, x):
