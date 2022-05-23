@@ -1,0 +1,21 @@
+fcn_autoencoder(
+  (encoder): Sequential(
+    (0): Linear(in_features=12288, out_features=2048, bias=True)
+    (1): LeakyReLU(negative_slope=0.01)
+    (2): Linear(in_features=2048, out_features=768, bias=True)
+    (3): LeakyReLU(negative_slope=0.01)
+    (4): Linear(in_features=768, out_features=256, bias=True)
+    (5): LeakyReLU(negative_slope=0.01)
+    (6): Linear(in_features=256, out_features=256, bias=True)
+  )
+  (decoder): Sequential(
+    (0): Linear(in_features=256, out_features=256, bias=True)
+    (1): LeakyReLU(negative_slope=0.01)
+    (2): Linear(in_features=256, out_features=768, bias=True)
+    (3): LeakyReLU(negative_slope=0.01)
+    (4): Linear(in_features=768, out_features=2048, bias=True)
+    (5): LeakyReLU(negative_slope=0.01)
+    (6): Linear(in_features=2048, out_features=12288, bias=True)
+    (7): Tanh()
+  )
+)
